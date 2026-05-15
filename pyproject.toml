@@ -9,5 +9,8 @@ description = "A lightweight autonomous engineering orchestrator"
 requires-python = ">=3.10"
 dependencies = []
 
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
 [project.scripts]
 autoforge = "autoforge.cli:main"
