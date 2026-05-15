@@ -830,6 +830,7 @@ def test_cmd_watch_once_no_ready_issues(capsys):
         interval=0,
         max_runs=None,
         max_polls=None,
+        max_seconds=None,
         pr=False,
         commit=False,
     )
@@ -848,6 +849,7 @@ def test_cmd_watch_runs_first_ready_issue(capsys):
         interval=0,
         max_runs=None,
         max_polls=None,
+        max_seconds=None,
         model="m",
         provider="p",
         dry_run=True,

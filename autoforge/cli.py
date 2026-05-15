@@ -401,9 +401,11 @@ def cmd_watch(args: argparse.Namespace) -> int:
 
     runs = 0
     polls = 0
+    started_at = time.monotonic()
     print(
         "Watching for GitHub issues labeled status:ready "
-        f"every {args.interval}s."
+        f"every {args.interval}s.",
+        flush=True,
     )
     while True:
         polls += 1
@@ -426,10 +428,15 @@ def cmd_watch(args: argparse.Namespace) -> int:
                 )
                 return ret
         else:
-            print("No ready issues found.")
+            print("No ready issues found.", flush=True)
 
         if args.once:
             return 0
+        if args.max_seconds is not None:
+            elapsed = time.monotonic() - started_at
+            if elapsed >= args.max_seconds:
+                print(f"Reached max seconds: {args.max_seconds}", flush=True)
+                return 0
         if args.max_runs is not None and runs >= args.max_runs:
             print(f"Reached max runs: {args.max_runs}")
             return 0
@@ -534,6 +541,10 @@ def main() -> int:
     watch_parser.add_argument(
         "--max-polls", type=int, default=None,
         help="Stop after this many polling iterations",
+    )
+    watch_parser.add_argument(
+        "--max-seconds", type=int, default=None,
+        help="Stop cleanly after this many seconds",
     )
     watch_parser.add_argument(
         "--model", type=str, default="qwen/qwen3.6-35b-a3b",
