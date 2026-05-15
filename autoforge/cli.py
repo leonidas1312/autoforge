@@ -9,7 +9,7 @@ import time
 from pathlib import Path
 
 from autoforge.prompt import build_prompt, load_workflow_md
-from autoforge.worktree import create_worktree
+from autoforge.worktree import branch_name, create_worktree
 
 
 def check_tool(name: str) -> bool:
@@ -193,6 +193,28 @@ def _commit_changes(
     return run_cmd(["git", "-C", str(wt_path), "commit", "-m", message])
 
 
+def _push_branch(wt_path: Path, issue_num: int) -> subprocess.CompletedProcess:
+    """Push the issue branch so GitHub can open a PR."""
+    branch = branch_name(issue_num)
+    return run_cmd(["git", "-C", str(wt_path), "push", "-u", "origin", branch])
+
+
+def _resolve_test_cmd(command: str, repo_root: Path, wt_path: Path) -> str:
+    """Resolve convenience placeholders for commands run inside worktrees.
+
+    Test commands execute with cwd set to the generated worktree because tests
+    must validate the candidate changes. Placeholders let users reference tools
+    installed in the original checkout, for example `{repo}/.venv/bin/pytest`.
+    For convenience, a command starting with `.venv/` is treated as repo-root
+    relative because that is the common local development layout.
+    """
+    resolved = command.replace("{repo}", str(repo_root.resolve()))
+    resolved = resolved.replace("{worktree}", str(wt_path.resolve()))
+    if resolved.startswith(".venv/"):
+        resolved = str(repo_root.resolve() / resolved)
+    return resolved
+
+
 def _create_pr(
     wt_path: Path,
     issue: dict,
@@ -303,8 +325,9 @@ def cmd_run(args: argparse.Namespace) -> int:
     test_summary = None
     if args.test_cmd:
         print(f"\nRunning tests: {args.test_cmd}")
-        test = run_shell(args.test_cmd, cwd=wt_path, timeout=args.test_timeout)
-        test_summary = f"{args.test_cmd}\nexit code: {test.returncode}"
+        test_cmd = _resolve_test_cmd(args.test_cmd, repo_root, wt_path)
+        test = run_shell(test_cmd, cwd=wt_path, timeout=args.test_timeout)
+        test_summary = f"{test_cmd}\nexit code: {test.returncode}"
         if test.stdout.strip():
             print(test.stdout)
         if test.stderr.strip():
@@ -337,6 +360,11 @@ def cmd_run(args: argparse.Namespace) -> int:
         print(commit.stdout.strip())
 
     if args.pr:
+        print("\nPushing branch...")
+        push = _push_branch(wt_path, num)
+        if push.returncode != 0:
+            print(push.stderr or push.stdout, file=sys.stderr)
+            return push.returncode
         print("\nCreating pull request...")
         pr = _create_pr(wt_path, issue, test_summary)
         if pr.returncode != 0:

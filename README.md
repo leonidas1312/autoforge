@@ -119,6 +119,10 @@ Useful options:
 - `--base <ref>` chooses the base branch/ref for `git worktree add`.
 - `--jcode-timeout <seconds>` bounds the headless agent run.
 - `--test-timeout <seconds>` bounds `--test-cmd`.
+- `--test-cmd` runs inside the generated worktree. Use `{repo}` to reference
+  the original checkout, for example `{repo}/.venv/bin/pytest -q`. A command
+  that starts with `.venv/` is automatically resolved relative to the original
+  checkout for convenience.
 - `--pr` requires `--commit` so there is a commit to publish.
 
 ## Architecture

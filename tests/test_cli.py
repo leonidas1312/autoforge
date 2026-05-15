@@ -883,3 +883,35 @@ def test_cmd_watch_pr_requires_commit(capsys):
     captured = capsys.readouterr()
     assert ret == 1
     assert "--pr requires --commit" in captured.out + captured.err
+
+
+def test_resolve_test_cmd_expands_repo_placeholder(tmp_path):
+    """Test commands can reference the original repo root."""
+    from autoforge.cli import _resolve_test_cmd
+    repo = tmp_path / "repo"
+    worktree = tmp_path / "repo" / ".autoforge" / "work" / "3"
+    repo.mkdir()
+    worktree.mkdir(parents=True)
+    result = _resolve_test_cmd("{repo}/.venv/bin/pytest -q", repo, worktree)
+    assert result == f"{repo.resolve()}/.venv/bin/pytest -q"
+
+
+def test_resolve_test_cmd_treats_dot_venv_as_repo_relative(tmp_path):
+    """A leading .venv path resolves from repo root, not worktree root."""
+    from autoforge.cli import _resolve_test_cmd
+    repo = tmp_path / "repo"
+    worktree = tmp_path / "repo" / ".autoforge" / "work" / "3"
+    repo.mkdir()
+    worktree.mkdir(parents=True)
+    result = _resolve_test_cmd(".venv/bin/pytest -q", repo, worktree)
+    assert result == f"{repo.resolve()}/.venv/bin/pytest -q"
+
+
+def test_push_branch_uses_issue_branch(tmp_path):
+    """_push_branch pushes the autoforge issue branch to origin."""
+    from autoforge.cli import _push_branch
+    with patch("autoforge.cli.run_cmd", return_value=MockCompletedProcess()) as mock_run:
+        _push_branch(tmp_path, 12)
+    mock_run.assert_called_once_with([
+        "git", "-C", str(tmp_path), "push", "-u", "origin", "autoforge/issue-12",
+    ])
