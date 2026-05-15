@@ -818,3 +818,64 @@ def test_run_parser_has_expected_args(monkeypatch):
             }
             main()
     mock_view.assert_called_once_with(100)
+
+
+# ---- watch command tests ----
+
+
+def test_cmd_watch_once_no_ready_issues(capsys):
+    """watch --once exits cleanly when no issues are ready."""
+    args = argparse.Namespace(
+        once=True,
+        interval=0,
+        max_runs=None,
+        max_polls=None,
+        pr=False,
+        commit=False,
+    )
+    with patch("autoforge.cli._list_ready_issues", return_value=[]):
+        ret = __import__("autoforge.cli", fromlist=["cmd_watch"]).cmd_watch(args)
+    captured = capsys.readouterr()
+    assert ret == 0
+    assert "No ready issues found" in captured.out
+
+
+def test_cmd_watch_runs_first_ready_issue(capsys):
+    """watch --once dispatches the first ready issue to cmd_run."""
+    from autoforge.cli import cmd_watch
+    args = argparse.Namespace(
+        once=True,
+        interval=0,
+        max_runs=None,
+        max_polls=None,
+        model="m",
+        provider="p",
+        dry_run=True,
+        base="master",
+        jcode_timeout=1,
+        test_cmd=None,
+        test_timeout=1,
+        commit=False,
+        pr=False,
+        comment=False,
+        label_status=False,
+    )
+    issue = {"number": 42, "title": "Do thing"}
+    with patch("autoforge.cli._list_ready_issues", return_value=[issue]):
+        with patch("autoforge.cli.cmd_run", return_value=0) as mock_run:
+            ret = cmd_watch(args)
+    captured = capsys.readouterr()
+    assert ret == 0
+    assert "Starting run for issue #42" in captured.out
+    mock_run.assert_called_once()
+    assert mock_run.call_args.args[0].issue == 42
+
+
+def test_cmd_watch_pr_requires_commit(capsys):
+    """watch rejects --pr without --commit."""
+    from autoforge.cli import cmd_watch
+    args = argparse.Namespace(pr=True, commit=False)
+    ret = cmd_watch(args)
+    captured = capsys.readouterr()
+    assert ret == 1
+    assert "--pr requires --commit" in captured.out + captured.err

@@ -5,6 +5,7 @@ import json
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 from autoforge.prompt import build_prompt, load_workflow_md
@@ -370,6 +371,75 @@ def cmd_run(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_args_for_issue(args: argparse.Namespace, issue_num: int) -> argparse.Namespace:
+    """Build a cmd_run namespace from watch args for one issue."""
+    return argparse.Namespace(
+        issue=issue_num,
+        model=args.model,
+        provider=args.provider,
+        dry_run=args.dry_run,
+        base=args.base,
+        jcode_timeout=args.jcode_timeout,
+        test_cmd=args.test_cmd,
+        test_timeout=args.test_timeout,
+        commit=args.commit,
+        pr=args.pr,
+        comment=args.comment,
+        label_status=args.label_status,
+    )
+
+
+def cmd_watch(args: argparse.Namespace) -> int:
+    """Poll ready issues and run Autoforge with bounded iterations."""
+    if args.pr and not args.commit:
+        print(
+            "[ERROR] --pr requires --commit so the branch has a commit "
+            "to publish.",
+            file=sys.stderr,
+        )
+        return 1
+
+    runs = 0
+    polls = 0
+    print(
+        "Watching for GitHub issues labeled status:ready "
+        f"every {args.interval}s."
+    )
+    while True:
+        polls += 1
+        try:
+            issues = _list_ready_issues()
+        except RuntimeError as exc:
+            print(f"[ERROR] {exc}", file=sys.stderr)
+            return 1
+
+        if issues:
+            issue = issues[0]
+            issue_num = issue["number"]
+            print(f"Starting run for issue #{issue_num}: {issue['title']}")
+            ret = cmd_run(_run_args_for_issue(args, issue_num))
+            runs += 1
+            if ret != 0:
+                print(
+                    f"[ERROR] run for issue #{issue_num} failed with {ret}",
+                    file=sys.stderr,
+                )
+                return ret
+        else:
+            print("No ready issues found.")
+
+        if args.once:
+            return 0
+        if args.max_runs is not None and runs >= args.max_runs:
+            print(f"Reached max runs: {args.max_runs}")
+            return 0
+        if args.max_polls is not None and polls >= args.max_polls:
+            print(f"Reached max polls: {args.max_polls}")
+            return 0
+
+        time.sleep(args.interval)
+
+
 # ---- argument parsing ----
 
 
@@ -444,6 +514,72 @@ def main() -> int:
         help="Move GitHub issue labels between ready/in-progress/review/blocked",
     )
 
+    # watch
+    watch_parser = sub.add_parser(
+        "watch",
+        help="Poll status:ready issues and run Autoforge automatically",
+    )
+    watch_parser.add_argument(
+        "--interval", type=int, default=60,
+        help="Seconds between polls (default: 60)",
+    )
+    watch_parser.add_argument(
+        "--once", action="store_true", default=False,
+        help="Poll once and run at most one issue",
+    )
+    watch_parser.add_argument(
+        "--max-runs", type=int, default=None,
+        help="Stop after this many successful/attempted runs",
+    )
+    watch_parser.add_argument(
+        "--max-polls", type=int, default=None,
+        help="Stop after this many polling iterations",
+    )
+    watch_parser.add_argument(
+        "--model", type=str, default="qwen/qwen3.6-35b-a3b",
+        help="Model to use (default: qwen/qwen3.6-35b-a3b)",
+    )
+    watch_parser.add_argument(
+        "--provider", type=str, default="openrouter",
+        help="Provider to use (default: openrouter)",
+    )
+    watch_parser.add_argument(
+        "--dry-run", action="store_true", default=False,
+        help="Build prompt and print it without calling jcode",
+    )
+    watch_parser.add_argument(
+        "--base", type=str, default="master",
+        help="Base branch/ref for the worktree (default: master)",
+    )
+    watch_parser.add_argument(
+        "--jcode-timeout", type=int, default=1800,
+        help="Timeout for jcode run in seconds (default: 1800)",
+    )
+    watch_parser.add_argument(
+        "--test-cmd", type=str, default=None,
+        help="Optional test command to run inside each worktree",
+    )
+    watch_parser.add_argument(
+        "--test-timeout", type=int, default=900,
+        help="Timeout for --test-cmd in seconds (default: 900)",
+    )
+    watch_parser.add_argument(
+        "--commit", action="store_true", default=False,
+        help="Commit successful changes in each worktree",
+    )
+    watch_parser.add_argument(
+        "--pr", action="store_true", default=False,
+        help="Create a GitHub PR after each successful committed run",
+    )
+    watch_parser.add_argument(
+        "--comment", action="store_true", default=False,
+        help="Comment run status back to each GitHub issue",
+    )
+    watch_parser.add_argument(
+        "--label-status", action="store_true", default=False,
+        help="Move GitHub issue labels between ready/in-progress/review/blocked",
+    )
+
     parsed = parser.parse_args()
 
     if parsed.command == "doctor":
@@ -452,6 +588,8 @@ def main() -> int:
         return cmd_issues(parsed)
     if parsed.command == "run":
         return cmd_run(parsed)
+    if parsed.command == "watch":
+        return cmd_watch(parsed)
 
     parser.print_help()
     return 0
