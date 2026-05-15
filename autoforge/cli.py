@@ -401,6 +401,7 @@ def cmd_watch(args: argparse.Namespace) -> int:
 
     runs = 0
     polls = 0
+    consecutive_errors = 0
     started_at = time.monotonic()
     print(
         "Watching for GitHub issues labeled status:ready "
@@ -413,7 +414,19 @@ def cmd_watch(args: argparse.Namespace) -> int:
             issues = _list_ready_issues()
         except RuntimeError as exc:
             print(f"[ERROR] {exc}", file=sys.stderr)
-            return 1
+            consecutive_errors += 1
+            if consecutive_errors >= args.max_errors:
+                print(
+                    f"[ERROR] reached max consecutive errors: {args.max_errors}",
+                    file=sys.stderr,
+                )
+                return 1
+            if args.once:
+                return 1
+            time.sleep(args.interval)
+            continue
+
+        consecutive_errors = 0
 
         if issues:
             issue = issues[0]
@@ -545,6 +558,10 @@ def main() -> int:
     watch_parser.add_argument(
         "--max-seconds", type=int, default=None,
         help="Stop cleanly after this many seconds",
+    )
+    watch_parser.add_argument(
+        "--max-errors", type=int, default=5,
+        help="Stop after this many consecutive polling errors (default: 5)",
     )
     watch_parser.add_argument(
         "--model", type=str, default="qwen/qwen3.6-35b-a3b",

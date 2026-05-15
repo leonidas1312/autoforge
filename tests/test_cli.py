@@ -831,6 +831,7 @@ def test_cmd_watch_once_no_ready_issues(capsys):
         max_runs=None,
         max_polls=None,
         max_seconds=None,
+        max_errors=5,
         pr=False,
         commit=False,
     )
@@ -850,6 +851,7 @@ def test_cmd_watch_runs_first_ready_issue(capsys):
         max_runs=None,
         max_polls=None,
         max_seconds=None,
+        max_errors=5,
         model="m",
         provider="p",
         dry_run=True,
@@ -876,7 +878,7 @@ def test_cmd_watch_runs_first_ready_issue(capsys):
 def test_cmd_watch_pr_requires_commit(capsys):
     """watch rejects --pr without --commit."""
     from autoforge.cli import cmd_watch
-    args = argparse.Namespace(pr=True, commit=False)
+    args = argparse.Namespace(pr=True, commit=False, max_errors=5)
     ret = cmd_watch(args)
     captured = capsys.readouterr()
     assert ret == 1
