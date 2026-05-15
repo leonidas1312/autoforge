@@ -17,6 +17,29 @@ pip install -e .
 ```bash
 autoforge --help
 autoforge doctor
+autoforge issues
+```
+
+### `autoforge issues`
+
+Lists GitHub issues labeled `status:ready`:
+
+```bash
+autoforge issues
+```
+
+Output:
+
+```
+Found 2 ready issue(s):
+
+  #42 [open] Add feature X
+       labels: status:ready, bug
+       https://github.com/example/repo/issues/42
+
+  #43 [open] Fix typo Y
+       labels: status:ready
+       https://github.com/example/repo/issues/43
 ```
 
 ## MVP
