@@ -125,6 +125,14 @@ Useful options:
   checkout for convenience.
 - `--pr` requires `--commit` so there is a commit to publish.
 
+## Run records
+
+Planned: persist structured records for each run so you can inspect history
+without digging through worktrees.  Each record will capture the issue number,
+branch, model/provider, timestamps, test result, commit hash, and PR URL.
+A simple `autoforge history` subcommand will list recent runs with their
+status.  Records will be stored as JSON files under `.autoforge/records/`.
+
 ## Architecture
 
 ```
